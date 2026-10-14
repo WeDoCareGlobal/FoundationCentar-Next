@@ -1,8 +1,7 @@
 import unittest
 
-from foundation_next.identity import AuthenticatedPrincipal, IdentityBoundary
 from foundation_next.tenancy import TenantCatalog, ToolManifest
-from foundation_next.tenant_dispatch import TenantDispatcher
+from foundation_next.tenant_dispatch import TenantDispatcher, AuthenticatedPrincipal, IdentityBoundary
 
 
 class TenantDispatchTests(unittest.TestCase):
