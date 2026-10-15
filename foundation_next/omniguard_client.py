@@ -70,6 +70,10 @@ class OmniGuardClient:
             resp.raise_for_status()
             decision_header = resp.headers.get("X-Governance-Decision", "BLOCK")
             decision = OmniGuardDecision(decision_header)
+            # Legacy OmniGuard signs an opaque payload, not the decision or tenant.
+            # Until a bound, verifiable decision protocol exists, ALLOW is not trusted.
+            if decision == OmniGuardDecision.ALLOW:
+                raise RuntimeError("Unverifiable OmniGuard ALLOW decision; bound signature required")
             return OmniGuardResult(
                 decision=decision,
                 confidence=float(resp.headers.get("X-Governance-Confidence", "0.0")),
