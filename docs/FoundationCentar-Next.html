@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FoundationCentar — We Do Care Global</title>
+  <meta name="description" content="We Do Care Global - open engineering for governed enterprise AI. FoundationCentar-Next" />
+  <meta property="og:title" content="FoundationCentar - We Do Care Global" />
+  <meta property="og:description" content="We Do Care Global - open engineering for governed enterprise AI." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#070c11" />
+  <style>:root {
+  --bg: #070c11; --surface: #0d151c; --surface2: #111c24;
+  --line: #22303a; --ink: #eef3f5; --muted: #93a3ad;
+  --mint: #9ff0cf; --gold: #d3b27e;
+  --font: 'IBM Plex Sans', system-ui, sans-serif;
+  --display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.7; }
+a { color: inherit; text-decoration: none; }
+.container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.header { padding: 60px 0 40px; text-align: center; border-bottom: 1px solid var(--line); }
+.header .tag { display: inline-block; font-family: monospace; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--mint); margin-bottom: 16px; }
+.header h1 { font-family: var(--display); font-size: clamp(28px, 4vw, 44px); font-weight: 600; letter-spacing: -.03em; line-height: 1.1; margin-bottom: 16px; }
+.header h1 em { font-style: normal; color: var(--gold); }
+.header p { color: var(--muted); font-size: 16px; max-width: 620px; margin: 0 auto 28px; line-height: 1.8; }
+.badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 36px; }
+.badge { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; padding: 6px 14px; border-radius: 5px; background: var(--surface2); border: 1px solid var(--line); color: var(--muted); }
+.section { padding: 64px 0; border-top: 1px solid var(--line); }
+.section-title { font-family: var(--display); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -.02em; margin-bottom: 20px; }
+.section p { color: var(--muted); font-size: 16px; line-height: 1.8; max-width: 760px; margin-bottom: 24px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; transition: border-color .15s, transform .15s; }
+.card:hover { border-color: var(--mint); transform: translateY(-2px); }
+.card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.card p { font-size: 14px; color: var(--muted); line-height: 1.7; margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 36px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 24px; border-radius: 5px; font-size: 14px; font-weight: 600; border: 1px solid var(--line); cursor: pointer; transition: all .15s; }
+.btn:hover { border-color: var(--mint); color: var(--mint); transform: translateY(-2px); }
+.btn-primary { background: var(--mint); border-color: var(--mint); color: #06120d; }
+.btn-primary:hover { background: #b5f4da; border-color: #b5f4da; }
+.footer { text-align: center; padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.footer .org { font-family: monospace; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.flex { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; justify-content: center; }
+@media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .section { padding: 40px 0; } }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <span class="tag">Agent Factory</span>
+      <h1>FoundationCentar <em>- Next Generation</em></h1>
+      <p>We Do Care Global ecosystem component. FoundationCentar-Next. Full documentation, source code, and deployment guides available on GitHub.</p>
+      <div class="badges">
+        <span class="badge">Apache-2.0</span>
+        <span class="badge">We Do Care Global</span>
+        <span class="badge">v1.0.0</span>
+      </div>
+    </header>
+
+    <section class="section">
+      <h2 class="section-title">Key Capabilities</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Core Features</h3>
+          <p>• Feature demonstration<br/>• Architecture overview<br/>• Integration guide<br/>• API reference</p>
+        </div>
+        <div class="card">
+          <h3>Tech Stack</h3>
+          <p>• Python 3.11+<br/>• PostgreSQL<br/>• FastAPI<br/>• React + TypeScript</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="background: var(--surface);">
+      <div class="container">
+        <div class="flex">
+          <a href="https://github.com/WeDoCareGlobal/FoundationCentar-Next" target="_blank" rel="noopener">
+            <button class="btn btn-primary">&rarr; View on GitHub</button>
+          </a>
+          <a href="https://wedocareglobal.github.io/FoundationCentar-Next/" target="_blank" rel="noopener">
+            <button class="btn">&rarr; Live Demo</button>
+          </a>
+          <a href="https://wedocare-global.com/" target="_blank" rel="noopener">
+            <button class="btn">Contact us &rarr;</button>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="org">We Do Care Global</div>
+      <p>6 published systems - Apache-2.0 open source - 33% profits to humanitarian</p>
+    </footer>
+  </div>
+</body>
+</html>
