@@ -40,6 +40,10 @@ class MCPGateway:
         arguments: dict[str, Any],
         authorization: str,
     ) -> dict[str, Any]:
+        # Fail closed when inspection is configured but the client is missing.
+        if self._enable_omniguard and self._omniguard is None:
+            raise ToolError("OmniGuard client unavailable")
+
         # 1. OmniGuard inspection (if enabled)
         if self._enable_omniguard and self._omniguard:
             # Build messages from tool call for inspection
@@ -51,9 +55,9 @@ class MCPGateway:
                 },
             ]
             result: OmniGuardResult = await self._omniguard.inspect(messages)
-            if result.decision == OmniGuardDecision.BLOCK:
+            if result.decision != OmniGuardDecision.ALLOW:
                 raise ToolError(
-                    f"OmniGuard blocked tool call: {result.blocked_reason or 'policy violation'}"
+                    f"OmniGuard did not allow tool call: {result.blocked_reason or 'policy violation'}"
                 )
 
         # 2. Local tool authorization
