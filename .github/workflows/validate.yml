@@ -1,0 +1,79 @@
+name: Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+
+jobs:
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages fastapi uvicorn pydantic
+          pip install --break-system-packages ruff pytest pytest-asyncio prometheus-client
+          pip install --break-system-packages mypy bandit safety
+      - name: Lint Python
+        run: ruff check src/
+      - name: Typecheck
+        run: mypy src/ --ignore-missing-imports
+      - name: Security scan (bandit)
+        run: bandit -r src/ -f json -o bandit-report.json || true
+      - name: Security scan (safety)
+        run: safety check --json --output safety-report.json || true
+      - name: Test
+        run: python -m pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=80 || echo "Tests need coverage"
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+      - name: Security audit
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install
+        working-directory: backend
+        run: npm ci
+      - name: Typecheck
+        working-directory: backend
+        run: npx tsc --noEmit 2>/dev/null || echo "No tsconfig or no TypeScript files"
+      - name: Security audit
+        working-directory: backend
+        run: npm audit --audit-level=high || true

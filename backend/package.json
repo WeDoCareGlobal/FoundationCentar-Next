@@ -1,0 +1,14 @@
+{
+  "name": "foundationcentar-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FoundationCentar AppDeploy backend",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
