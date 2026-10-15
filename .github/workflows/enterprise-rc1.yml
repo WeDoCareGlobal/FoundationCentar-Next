@@ -1,0 +1,58 @@
+name: Enterprise RC1 security checks
+
+on:
+  push:
+    branches:
+      - 'enterprise-ai-os/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enterprise-rc1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation-security-tests:
+    name: Foundation security regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt httpx
+      - name: Compile Python sources
+        run: python -m compileall -q foundation_next tests
+      - name: Run OmniGuard boundary tests
+        run: python -m unittest discover -s tests -p 'test_omniguard_boundary_rc1.py' -v
+      - name: Run AgentGuard contract tests
+        run: python -m unittest discover -s tests -p 'test_agentguard_adapter.py' -v
+
+  ci-gate:
+    name: Enterprise RC1 gate
+    if: always()
+    needs: [foundation-security-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require all security jobs to pass
+        env:
+          RESULT: ${{ needs.foundation-security-tests.result }}
+        run: |
+          test "$RESULT" = success
