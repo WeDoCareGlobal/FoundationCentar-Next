@@ -182,7 +182,7 @@ autorestart=true
 priority=10
 
 [program:python-api]
-command=python -m http.server 8000 --bind 127.0.0.1
+command=python -m uvicorn foundation_next.main:app --host 0.0.0.0 --port 8000 --workers 2
 directory=/app
 stdout_logfile=/var/log/supervisor/python_api.log
 stderr_logfile=/var/log/supervisor/python_api_err.log
