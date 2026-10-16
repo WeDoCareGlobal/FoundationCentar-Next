@@ -1,6 +1,7 @@
 """Original capability-aware agent registry and deterministic routing."""
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 class RoutingError(RuntimeError):
     pass
