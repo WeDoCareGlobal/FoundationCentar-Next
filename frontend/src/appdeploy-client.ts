@@ -1,5 +1,5 @@
 export const api = {
-  async get(path: string) {
+  async get(path: string): Promise<{data: Record<string, any>}> {
     // Mock API for demo - replace with real implementation
     console.log('[Mock API] GET', path);
     if (path === '/api/control-plane') {
@@ -65,7 +65,7 @@ export const ws = {
   connect() {
     console.log('[Mock WS] connect');
     return {
-      onMessage: (cb: any) => {},
+      onMessage: (cb: any) => { void cb; },
       disconnect: () => {},
     };
   },
