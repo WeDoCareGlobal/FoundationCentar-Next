@@ -1,5 +1,5 @@
 export const api = {
-  async get(path: string): Promise<{data: Record<string, any>}> {
+  async get(path: string): Promise<{data: any}> {
     // Mock API for demo - replace with real implementation
     console.log('[Mock API] GET', path);
     if (path === '/api/control-plane') {
