@@ -6,7 +6,8 @@ inside AgentGuard. Never dispatch the same operation again from Foundation.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
