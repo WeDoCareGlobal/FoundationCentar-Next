@@ -1,6 +1,5 @@
 """Foundation Next tenant-scoped tool catalog. No plaintext secrets stored."""
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)

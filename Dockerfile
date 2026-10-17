@@ -42,7 +42,7 @@ COPY backend/ ./
 # =============================================================================
 # Stage 3: Python Runtime (FastAPI + Orchestrator + Telemetry)
 # =============================================================================
-FROM python:3.11-slim@sha256:a8c5e5b8c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5 AS python-runtime
+FROM python:3.11-slim AS python-runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -60,10 +60,10 @@ COPY requirements.txt ./
 COPY requirements.lock ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --break-system-packages -r requirements.lock
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy Python source
-COPY src/ ./src/
+COPY foundation_next/ ./foundation_next/
 COPY models.yaml ./
 
 # Change ownership to non-root user
@@ -75,7 +75,7 @@ USER appuser
 # =============================================================================
 # Stage 4: Final Production Image
 # =============================================================================
-FROM python:3.11-slim@sha256:a8c5e5b8c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5 AS production
+FROM python:3.11-slim AS production
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -89,7 +89,7 @@ WORKDIR /app
 
 # Copy Python runtime from stage 3
 COPY --from=python-runtime /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=python-runtime /app/src ./src
+COPY --from=python-runtime /app/foundation_next ./foundation_next
 COPY --from=python-runtime /app/models.yaml ./models.yaml
 COPY --from=python-runtime /app/requirements.txt ./requirements.txt
 COPY --from=python-runtime /app/requirements.lock ./requirements.lock
@@ -101,7 +101,6 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 COPY --from=backend-ts-builder /app/backend ./backend
 
 # Copy config files
-COPY config/ ./config/
 COPY cron.json ./
 COPY .zenodo.json ./
 COPY CITATION.cff ./
@@ -183,7 +182,7 @@ autorestart=true
 priority=10
 
 [program:python-api]
-command=python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+command=python -m uvicorn foundation_next.main:app --host 0.0.0.0 --port 8000 --workers 2
 directory=/app
 stdout_logfile=/var/log/supervisor/python_api.log
 stderr_logfile=/var/log/supervisor/python_api_err.log

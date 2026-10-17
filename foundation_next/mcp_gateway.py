@@ -1,10 +1,10 @@
 """MCP tool dispatch boundary with OmniGuard integration. Only explicitly registered tools can execute."""
 from __future__ import annotations
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Awaitable
-import asyncio
+from typing import Any
 
-from .omniguard_client import get_omniguard_client, OmniGuardResult, OmniGuardDecision
+from .omniguard_client import OmniGuardDecision, OmniGuardResult, get_omniguard_client
 
 
 class ToolError(RuntimeError):
@@ -63,7 +63,7 @@ class MCPGateway:
         if entry is None or entry[0].capability != capability:
             raise ToolError("Tool is not registered for capability")
         if not isinstance(arguments, dict):
-            raise ValueError("Tool arguments must be an object")
+            raise TypeError("Tool arguments must be an object")
 
         # 3. Execute tool
         result = await entry[1](arguments)

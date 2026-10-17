@@ -3,7 +3,8 @@
 The upstream principal must be authenticated. An audit reference is retained
 for traceability, not treated as an independently verifiable permission token.
 """
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from foundation_next.agentguard_adapter import AgentGuardAdapter
 from foundation_next.orchestrator import IntegrationError

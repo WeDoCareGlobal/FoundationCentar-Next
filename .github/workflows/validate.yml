@@ -18,19 +18,19 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install --break-system-packages fastapi uvicorn pydantic
-          pip install --break-system-packages ruff pytest pytest-asyncio prometheus-client
+          pip install -r requirements.txt
+          pip install --break-system-packages ruff pytest pytest-asyncio pytest-cov prometheus-client
           pip install --break-system-packages mypy bandit safety
       - name: Lint Python
-        run: ruff check src/
+        run: ruff check foundation_next/
       - name: Typecheck
-        run: mypy src/ --ignore-missing-imports
+        run: mypy foundation_next/ --ignore-missing-imports
       - name: Security scan (bandit)
-        run: bandit -r src/ -f json -o bandit-report.json || true
+        run: bandit -r foundation_next/ -f json -o bandit-report.json || true
       - name: Security scan (safety)
         run: safety check --json --output safety-report.json || true
       - name: Test
-        run: python -m pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=80 || echo "Tests need coverage"
+        run: python -m pytest tests/ -v --cov=foundation_next --cov-report=xml
 
   lint-frontend:
     runs-on: ubuntu-latest
