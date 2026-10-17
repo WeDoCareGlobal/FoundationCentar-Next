@@ -5,6 +5,7 @@ Identity must come from a trusted authenticated upstream; this module does not
 implement authentication.
 """
 from typing import Any
+
 from foundation_next.agents import AgentRegistry
 from foundation_next.orchestrator import FoundationOrchestrator
 from foundation_next.workflows import WorkflowEngine

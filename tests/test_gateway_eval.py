@@ -3,29 +3,35 @@ from foundation_next.mcp_gateway import MCPGateway, ToolError, ToolSpec
 from foundation_next.evaluation import EvaluationEvent, Evaluator
 
 
-class GatewayEvaluationTests(unittest.TestCase):
-    def test_gateway_allowlisted_execution(self):
-        gateway = MCPGateway()
-        gateway.register(ToolSpec("search", "rag"), lambda args: {"status": "success", "query": args["query"]})
-        result = gateway.execute(tool="search", capability="rag", arguments={"query": "test"}, authorization="decision-1")
+class GatewayEvaluationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_gateway_allowlisted_execution(self):
+        gateway = MCPGateway(enable_omniguard=False)
+        async def handler(args):
+            return {"status": "success", "query": args["query"]}
+        gateway.register(ToolSpec("search", "rag"), handler)
+        result = await gateway.execute(tool="search", capability="rag", arguments={"query": "test"}, authorization="decision-1")
         self.assertEqual(result["query"], "test")
 
-    def test_gateway_rejects_unknown_tool(self):
-        gateway = MCPGateway()
+    async def test_gateway_rejects_unknown_tool(self):
+        gateway = MCPGateway(enable_omniguard=False)
         with self.assertRaises(ToolError):
-            gateway.execute(tool="shell", capability="ops", arguments={}, authorization="decision-1")
+            await gateway.execute(tool="shell", capability="ops", arguments={}, authorization="decision-1")
 
-    def test_gateway_rejects_missing_authorization(self):
-        gateway = MCPGateway()
-        gateway.register(ToolSpec("search", "rag"), lambda _: {"status": "success"})
+    async def test_gateway_rejects_missing_authorization(self):
+        gateway = MCPGateway(enable_omniguard=False)
+        async def handler(_):
+            return {"status": "success"}
+        gateway.register(ToolSpec("search", "rag"), handler)
         with self.assertRaises(ToolError):
-            gateway.execute(tool="search", capability="rag", arguments={}, authorization="")
+            await gateway.execute(tool="search", capability="rag", arguments={}, authorization="")
 
-    def test_gateway_rejects_unconfirmed_result(self):
-        gateway = MCPGateway()
-        gateway.register(ToolSpec("search", "rag"), lambda _: {"status": "pending"})
+    async def test_gateway_rejects_unconfirmed_result(self):
+        gateway = MCPGateway(enable_omniguard=False)
+        async def handler(_):
+            return {"status": "pending"}
+        gateway.register(ToolSpec("search", "rag"), handler)
         with self.assertRaises(ToolError):
-            gateway.execute(tool="search", capability="rag", arguments={}, authorization="decision-1")
+            await gateway.execute(tool="search", capability="rag", arguments={}, authorization="decision-1")
 
     def test_evaluation_summary(self):
         evaluator = Evaluator()

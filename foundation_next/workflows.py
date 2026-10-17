@@ -9,8 +9,9 @@ import contextlib
 import json
 import sqlite3
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 
 @contextlib.contextmanager
@@ -36,7 +37,7 @@ def _managed_connection(database_path: str):
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class WorkflowError(RuntimeError):
