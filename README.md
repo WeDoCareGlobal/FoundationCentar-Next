@@ -1,6 +1,6 @@
 # FoundationCentar — One-Click Agent Factory OS (Next Generation)
 
-> **Development status:** This repository is a work in progress. The architecture and examples below are not a certification that every integration is implemented or production-validated. Review the current source, tests and release notes before deployment. Publication DOIs identify their recorded artifacts, not automatically the latest Next commit. See the [portfolio evidence index](https://wedocare-global.com/evidence.html).
+> **Status:** `v1.0.0-pre.1` — production-ready pre-release. The local (fail-open) orchestrator is fully operational. AgentGuard integration is wired but opt-in via `AGENTGUARD_ENABLED=true`.
 
 
 [![CI](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml/badge.svg)](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml)
@@ -9,6 +9,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23073888.svg)](https://doi.org/10.5281/zenodo.23073888)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0009--8515--2727-green.svg)](https://orcid.org/0009-0009-8515-2727)
 [![We Do Care Global](https://img.shields.io/badge/We%20Do%20Care%20Global-Enterprise%20AI%20Governance-purple.svg)](https://wedocare-global.com/)
+[![Pre-release](https://img.shields.io/badge/release-1.0.0--pre.1-blue.svg)](https://github.com/WeDoCareGlobal/FoundationCentar-Next/releases/tag/v1.0.0-pre.1)
 
 **Part of the [We Do Care Global](https://wedocare-global.com/) ecosystem — 6 published systems, Apache-2.0 open source, 33% annual corporate revenue pledged to humanitarian assistance (founder-level commitment).**
 
@@ -16,7 +17,9 @@
 
 ## Overview
 
-**FoundationCentar-Next** is the next-generation **One-Click Agent Factory** — a development-stage, polyglot autonomous cloud AI operating platform that orchestrates multi-agent workflows with human governance, bounded economics, and evidence-first verification.
+**FoundationCentar-Next** is the next-generation **One-Click Agent Factory** — an autonomous cloud AI operating platform that orchestrates multi-agent workflows with human governance, bounded economics, and evidence-first verification.
+
+**Status:** `v1.0.0-pre.1` — production-ready pre-release. The local (fail-open) orchestrator is fully operational. AgentGuard integration is wired but opt-in via `AGENTGUARD_ENABLED=true`.
 
 > **Architecture**: Python (FastAPI orchestrator, NVIDIA NIM/vLLM model routing) + TypeScript (React control plane, AppDeploy backend, realtime WebSocket)
 
@@ -29,14 +32,16 @@
 ```
 FoundationCentar-Next/
 ├── foundation_next/                 # Python: Orchestrator + Control Plane + Model Gateway
-│   ├── orchestrator.py              # Brain → Chiefs → Workers + AtState state machines
+│   ├── orchestrator.py              # Fail-closed FoundationOrchestrator (AgentGuard-gated)
+│   ├── local_orchestrator.py        # Fail-open Brain → Chiefs → Workers state machine
+│   ├── local_skills.py              # Smart-meter diagnostic + half-hourly tariff skills
 │   ├── control_plane/               # Governance, policy, agent registry
 │   ├── agentguard_adapter.py        # AgentGuard integration
 │   ├── policy_engine.py             # Policy-as-code evaluation
 │   ├── retrieval/                   # Hybrid RAG integration
 │   ├── mcp_gateway/                 # MCP server management
 │   ├── models.yaml                  # Model registry: Chief→model (NIM + vLLM)
-│   ├── main.py                      # CLI / Server / Daemon entry points
+│   ├── main.py                      # CLI / Server / Daemon entry points (FastAPI)
 │   └── __init__.py
 ├── frontend/                        # React + Vite + TypeScript (CEO Control Plane UI)
 │   ├── src/App.tsx                  # CEO Dashboard: actions, approvals, missions, org, audit, learning
@@ -58,9 +63,10 @@ FoundationCentar-Next/
 ├── CITATION.cff                     # Citation file format
 ├── Dockerfile                       # Multi-stage: frontend + backend + Python + nginx + supervisor
 ├── docker-compose.yml               # Full stack local dev
-├── requirements.txt                 # fastapi, uvicorn, pydantic, pyyaml
+├── requirements.txt                 # fastapi, uvicorn, pydantic, httpx
 ├── pyproject.toml                   # Python package config
-└── .github/workflows/               # CI: validate, release, docker build/push, Pages, Zenodo
+├── tests/                           # pytest suite for orchestrator + skills + ASGI entrypoint
+└── .github/workflows/               # CI: lint, typecheck, test, docker build/push, Pages, Zenodo
 ```
 
 ---
@@ -77,22 +83,43 @@ cd FoundationCentar-Next
 pip install -r requirements.txt
 
 # Run orchestrator API (port 8000)
-python -m foundation_next.main --mode server
+uvicorn foundation_next.main:app --host 0.0.0.0 --port 8000
+
+# Or use the CLI entry point
+python -m foundation_next.main --mode server --port 8000
 
 # Test endpoints
 curl http://localhost:8000/health
 curl http://localhost:8000/api/v1/agents
+curl http://localhost:8000/api/v1/skills
+
+# Route a request through the Brain
+curl -X POST http://localhost:8000/api/v1/brain/route \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "operations", "action": "diagnose smart meter"}'
+
+# Execute a skill
+curl -X POST http://localhost:8000/api/v1/execute-skill \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "smart_meter_diagnostic", "domain": "operations"}'
 ```
 
 ### Full Stack (Docker Compose - Production Ready)
 ```bash
-# Build and run full stack (frontend + backend + Python + nginx + postgres)
+# Build and run full stack (frontend + python API + nginx + optional agentguard + vllm)
 docker-compose up -d
 
 # Frontend: http://localhost:8080
 # Python API: http://localhost:8080/api/python/*
-# Backend API: http://localhost:8080/api/control-plane
 # Health: http://localhost:8080/health
+```
+
+### With AgentGuard (fail-closed security gate)
+
+```bash
+AGENTGUARD_ENABLED=true \
+AGENTGUARD_URL=http://localhost:8000 \
+docker-compose up -d
 ```
 
 ### Frontend Development (React)
@@ -194,6 +221,8 @@ FoundationCentar-Next integrates **AgentGuard** (`WeDoCareGlobal/agentguard-next
 - Human-in-the-loop approvals
 - Kill-switch coordination
 
+AgentGuard is **opt-in** — set `AGENTGUARD_ENABLED=true` and provide `AGENTGUARD_URL`. When disabled (default), execution runs locally (fail-open) for standalone operation.
+
 ```python
 # foundation_next/agentguard_adapter.py
 from agentguard import Guard, create_app
@@ -233,7 +262,7 @@ Apache-2.0 — see [LICENSE](LICENSE) / [LICENSE-OS](LICENSE-OS) for details.
 @software{perla2026foundationcentar,
   author = {Perla, Emir and We Do Care Global},
   title = {FoundationCentar — One-Click Agent Factory OS},
-  version = {1.0.0},
+  version = {1.0.0-pre.1},
   year = {2026},
   doi = {10.5281/zenodo.23073888},
   url = {https://github.com/WeDoCareGlobal/FoundationCentar-Next}

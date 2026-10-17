@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.python-version
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.venv/
+env/
+venv/
+.eggs/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/dist-ssr/
+*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# macOS
+__MACOSX/

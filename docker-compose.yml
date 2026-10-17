@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # Python FastAPI orchestrator + telemetry API (FoundationCentar core)
+  # ===========================================================================
+  python-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: python-runtime
+    container_name: foundationcentar-python
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - AGENTGUARD_URL=${AGENTGUARD_URL:-http://agentguard:8000}
+      - AGENTGUARD_ENABLED=${AGENTGUARD_ENABLED:-false}
+    volumes:
+      - ./foundation_next:/app/foundation_next:ro
+      - ./models.yaml:/app/models.yaml:ro
+      - ./config:/app/config:ro
+    depends_on:
+      - agentguard
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ===========================================================================
+  # AgentGuard — security & governance control plane (optional)
+  # ===========================================================================
+  agentguard:
+    image: ghcr.io/we-do-care-global/agentguard-next:latest
+    container_name: foundationcentar-agentguard
+    ports:
+      - "8001:8000"
+    environment:
+      - AGENTGUARD_POLICY_PATH=/etc/agentguard/policy.yaml
+    volumes:
+      - ./config/policy.example.yaml:/etc/agentguard/policy.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ===========================================================================
+  # Nginx + supervisor — serves frontend + proxies API (production frontend)
+  # ===========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: foundationcentar-frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - python-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ===========================================================================
+  # vLLM (optional local model inference — Chief/Worker model endpoints)
+  # ===========================================================================
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: foundationcentar-vllm
+    ports:
+      - "8001:8000"
+    environment:
+      - MODEL=Qwen3-14B
+    volumes:
+      - ./models.yaml:/app/models.yaml:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+networks:
+  default:
+    name: foundationcentar-net

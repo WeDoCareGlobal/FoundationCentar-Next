@@ -1,0 +1,56 @@
+[project]
+name = "foundationcentar"
+version = "1.0.0-pre.1"
+description = "FoundationCentar — One-Click Agent Factory OS (Next Generation)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [
+  {name = "Emir Perla", email = "emirperla96@gmail.com"},
+  {name = "We Do Care Global"},
+]
+keywords = [
+  "agent-factory",
+  "multi-agent",
+  "orchestration",
+  "fastapi",
+  "nvidia-nim",
+  "vllm",
+  "ai-governance",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Framework :: FastAPI",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff==0.6.0",
+  "pytest==8.0.0",
+  "pytest-asyncio==0.23.0",
+  "mypy==1.10.0",
+  "bandit==1.7.0",
+  "safety==2.3.0",
+]
+docs = [
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=9.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

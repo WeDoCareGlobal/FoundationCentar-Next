@@ -1,0 +1,21 @@
+{
+  "repository": "WeDoCareGlobal/FoundationCentar-Next",
+  "orcid": {
+    "id": "0009-0009-8515-2727",
+    "mode": "public-read-until-OAuth-enabled"
+  },
+  "zenodo": {
+    "mode": "github-release-integration",
+    "recordUrl": ""
+  },
+  "localAiBridge": {
+    "runtime": "Hermes-compatible",
+    "endpoint": "",
+    "requiresHumanApprovalForHighRisk": true
+  },
+  "agentguard": {
+    "enabled": false,
+    "url": "http://localhost:8000",
+    "policyPath": "./config/policy.example.yaml"
+  }
+}
