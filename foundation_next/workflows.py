@@ -5,11 +5,34 @@ SQLite provides durable state and event history for single-process deployments.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
+
+
+@contextlib.contextmanager
+def _managed_connection(database_path: str):
+    """Open a SQLite connection, ensure it is closed on exit.
+
+    Python's sqlite3.Connection context manager only commits/rollbacks —
+    it does not close the file handle. Windows cannot delete a file that
+    is still open, so we wrap it with a closing context manager. We also
+    explicitly commit after each use so data is durable before the
+    connection is closed.
+    """
+    db = sqlite3.connect(database_path, timeout=10)
+    try:
+        db.execute("PRAGMA foreign_keys=ON")
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def utc_now() -> str:
@@ -23,7 +46,7 @@ class WorkflowError(RuntimeError):
 class WorkflowEngine:
     def __init__(self, database_path: str):
         self.database_path = database_path
-        with self._connect() as db:
+        with _managed_connection(self.database_path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY, capability TEXT NOT NULL, action TEXT NOT NULL,
                 principal TEXT NOT NULL, arguments TEXT NOT NULL,
@@ -35,9 +58,7 @@ class WorkflowEngine:
                 FOREIGN KEY(job_id) REFERENCES jobs(id))""")
 
     def _connect(self):
-        db = sqlite3.connect(self.database_path, timeout=10)
-        db.execute("PRAGMA foreign_keys=ON")
-        return db
+        return _managed_connection(self.database_path)
 
     def submit(self, *, principal: str, capability: str, action: str,
                arguments: dict[str, Any]) -> str:

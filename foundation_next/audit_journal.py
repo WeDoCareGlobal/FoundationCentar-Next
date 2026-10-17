@@ -6,13 +6,25 @@ complete deletion or replacement without an external trusted checkpoint.
 import hashlib
 import json
 import sqlite3
+from contextlib import contextmanager
 from foundation_next.workflows import utc_now
+
+
+@contextmanager
+def _conn(path: str):
+    db = sqlite3.connect(path, timeout=10)
+    try:
+        db.execute("PRAGMA foreign_keys=ON")
+        yield db
+        db.commit()
+    finally:
+        db.close()
 
 
 class AuditJournal:
     def __init__(self, path: str):
         self.path = path
-        with self._connect() as db:
+        with _conn(self.path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS audit_events (
                 seq INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -21,9 +33,6 @@ class AuditJournal:
                 resource TEXT NOT NULL,
                 previous_hash TEXT NOT NULL,
                 digest TEXT NOT NULL)""")
-
-    def _connect(self):
-        return sqlite3.connect(self.path, timeout=10)
 
     @staticmethod
     def _digest(seq, timestamp, actor, action, resource, previous):
@@ -34,8 +43,7 @@ class AuditJournal:
     def append(self, *, actor: str, action: str, resource: str) -> int:
         if not actor or not action or not resource:
             raise ValueError("Audit fields required")
-        with self._connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+        with _conn(self.path) as db:
             previous_row = db.execute(
                 "SELECT digest FROM audit_events ORDER BY seq DESC LIMIT 1").fetchone()
             previous = previous_row[0] if previous_row else "GENESIS"
@@ -48,8 +56,11 @@ class AuditJournal:
                 (next_seq, timestamp, actor, action, resource, previous, digest))
             return next_seq
 
+    def _connect(self):
+        return _conn(self.path)
+
     def verify(self) -> bool:
-        with self._connect() as db:
+        with _conn(self.path) as db:
             rows = db.execute("""SELECT seq,timestamp,actor,action,resource,previous_hash,digest
                                   FROM audit_events ORDER BY seq""").fetchall()
         previous = "GENESIS"

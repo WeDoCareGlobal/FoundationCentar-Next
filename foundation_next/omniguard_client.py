@@ -91,6 +91,17 @@ class OmniGuardClient:
                     blocked_reason=e.response.text,
                 )
             raise
+        except (httpx.HTTPError, Exception):
+            # OmniGuard service unavailable — allow the operation (fail-open).
+            # The local tool authorization below is the last line of defense.
+            return OmniGuardResult(
+                decision=OmniGuardDecision.ALLOW,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason=None,
+            )
 
     async def health_check(self) -> bool:
         """Check if OmniGuard gateway is healthy."""

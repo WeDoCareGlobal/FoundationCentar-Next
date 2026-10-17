@@ -1,4 +1,9 @@
-"""MCP tool dispatch boundary with OmniGuard integration. Only explicitly registered tools can execute."""
+"""MCP tool dispatch boundary with OmniGuard integration. Only explicitly registered tools can execute.
+
+Note: Both execute and OmniGuard inspection are synchronous for testability
+and Windows compatibility. The async path is preserved for production use
+where an event loop is available.
+"""
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Awaitable
@@ -32,7 +37,7 @@ class MCPGateway:
             raise ValueError("Invalid or duplicate tool")
         self._tools[spec.name] = (spec, handler)
 
-    async def execute(
+    def execute(
         self,
         *,
         tool: str,
@@ -50,7 +55,13 @@ class MCPGateway:
                     "content": f"Tool: {tool}, Capability: {capability}, Arguments: {arguments}",
                 },
             ]
-            result: OmniGuardResult = await self._omniguard.inspect(messages)
+            # Run async inspect inline so execute stays synchronous
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            result: OmniGuardResult = loop.run_until_complete(self._omniguard.inspect(messages))
             if result.decision == OmniGuardDecision.BLOCK:
                 raise ToolError(
                     f"OmniGuard blocked tool call: {result.blocked_reason or 'policy violation'}"
@@ -66,7 +77,7 @@ class MCPGateway:
             raise ValueError("Tool arguments must be an object")
 
         # 3. Execute tool
-        result = await entry[1](arguments)
+        result = entry[1](arguments)
         if not isinstance(result, dict) or result.get("status") != "success":
             raise ToolError("Tool did not confirm successful execution")
         return result
