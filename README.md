@@ -1,5 +1,8 @@
 # FoundationCentar — One-Click Agent Factory OS (Next Generation)
 
+> **Development status:** This repository is a work in progress. The architecture and examples below are not a certification that every integration is implemented or production-validated. Review the current source, tests and release notes before deployment. Publication DOIs identify their recorded artifacts, not automatically the latest Next commit. See the [portfolio evidence index](https://wedocare-global.com/evidence.html).
+
+
 [![CI](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml/badge.svg)](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml)
 [![Release](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/release.yml/badge.svg)](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/release.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -7,13 +10,13 @@
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0009--8515--2727-green.svg)](https://orcid.org/0009-0009-8515-2727)
 [![We Do Care Global](https://img.shields.io/badge/We%20Do%20Care%20Global-Enterprise%20AI%20Governance-purple.svg)](https://wedocare-global.com/)
 
-**Part of the [We Do Care Global](https://wedocare-global.com/) ecosystem — 6 published systems, Apache-2.0 open source, 33% profits → humanitarian.**
+**Part of the [We Do Care Global](https://wedocare-global.com/) ecosystem — 6 published systems, Apache-2.0 open source, 33% annual corporate revenue pledged to humanitarian assistance (founder-level commitment).**
 
 ---
 
 ## Overview
 
-**FoundationCentar-Next** is the next-generation **One-Click Agent Factory** — a production-grade, polyglot autonomous cloud AI operating platform that orchestrates multi-agent workflows with human governance, bounded economics, and evidence-first verification.
+**FoundationCentar-Next** is the next-generation **One-Click Agent Factory** — a development-stage, polyglot autonomous cloud AI operating platform that orchestrates multi-agent workflows with human governance, bounded economics, and evidence-first verification.
 
 > **Architecture**: Python (FastAPI orchestrator, NVIDIA NIM/vLLM model routing) + TypeScript (React control plane, AppDeploy backend, realtime WebSocket)
 
