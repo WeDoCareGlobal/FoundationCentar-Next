@@ -110,12 +110,16 @@ class WorkflowEngine:
 
     def _finish(self, job_id: str, status: str, result: dict[str, Any]) -> None:
         with self._connect() as db:
-            db.execute("UPDATE jobs SET status=?,result=?,updated_at=? WHERE id=? AND status='running'",
-                       (status, json.dumps(result), utc_now(), job_id))
+            db.execute(
+                "UPDATE jobs SET status=?,result=?,updated_at=? WHERE id=? AND status='running'",
+                (status, json.dumps(result), utc_now(), job_id),
+            )
             db.execute("INSERT INTO events(job_id,status,created_at) VALUES (?,?,?)",
                        (job_id, status, utc_now()))
 
     def history(self, job_id: str) -> list[str]:
         with self._connect() as db:
-            rows = db.execute("SELECT status FROM events WHERE job_id=? ORDER BY seq", (job_id,)).fetchall()
+            rows = db.execute(
+                "SELECT status FROM events WHERE job_id=? ORDER BY seq", (job_id,)
+            ).fetchall()
         return [row[0] for row in rows]
