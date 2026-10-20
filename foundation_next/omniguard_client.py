@@ -1,7 +1,7 @@
 """Deterministic unit tests for FoundationCentar-Next OmniGuard client.
 
 These tests use the REAL foundation_next.omniguard_client production implementation.
-All HTTP interactions are mocked, and every error path is verified to default to BLOCK (fail-closed).
+HTTP interactions are mocked; error paths default to BLOCK (fail-closed).
 
 Test coverage:
 - Missing OMNIGUARD_API_KEY -> ValueError raised (no hardcoded fallback)
@@ -20,14 +20,14 @@ Test coverage:
 
 from __future__ import annotations
 
-import os
 import json
 import logging
+import os
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional
 
 import httpx
-from dataclasses import dataclass
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
