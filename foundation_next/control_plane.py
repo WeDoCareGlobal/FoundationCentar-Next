@@ -1,19 +1,7 @@
-"""FoundationCentar application service.
-
-Jobs persist before execution. The security gate runs before any agent handler.
-Identity must come from a trusted authenticated upstream; this module does
-not implement authentication.
-
-Integrated with OmniGuard for fail-closed governance enforcement.
-OmniGuard ALLOW alone cannot bypass AgentGuard authorization.
-Both approvals are required before any protected capability side effects.
-
-CRITICAL: Missing or misconfigured OmniGuard gateway prevents ALL protected
-execution. No fail-open behavior. OmniGuard is a mandatory governance layer.
-"""
-from typing import Any
-
+"""Fail-closed FoundationCentar control plane with OmniGuard and AgentGuard gates."""
 import asyncio
+import json
+from typing import Any
 
 from foundation_next.agents import AgentRegistry
 from foundation_next.omniguard_client import OmniGuardClient, OmniGuardDecision
@@ -22,96 +10,95 @@ from foundation_next.workflows import WorkflowEngine
 
 
 class FoundationControlPlane:
-    def __init__(self, workflows: WorkflowEngine, guard: FoundationOrchestrator,
-                 agents: AgentRegistry, *, omni_guard_client: OmniGuardClient | None = None):
-        """
-        Initialize with optional omni_guard_client — if None, raises ValueError on first use.
-        The client MUST be configured; otherwise protected execution cannot start.
-        """
+    def __init__(
+        self,
+        workflows: WorkflowEngine,
+        guard: FoundationOrchestrator,
+        agents: AgentRegistry,
+        *,
+        omni_guard_client: OmniGuardClient | None = None,
+    ):
         if omni_guard_client is None:
-            raise ValueError(
-                "OmniGuardClient must be configured; cannot proceed without governance enforcement"
-            )
+            raise ValueError("OmniGuardClient is required for protected execution")
         self.workflows = workflows
         self.guard = guard
         self.agents = agents
         self.omni_guard_client = omni_guard_client
 
-    def submit_and_execute(self, *, principal: str, capability: str, action: str,
-                             arguments: dict[str, Any]) -> dict[str, Any]:
-        """
-        Execute a protected capability through the dual-gate security framework.
+    def submit_and_execute(
+        self,
+        *,
+        principal: str,
+        capability: str,
+        action: str,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        job_id = self.workflows.submit(
+            principal=principal,
+            capability=capability,
+            action=action,
+            arguments=arguments,
+        )
 
-        GATE 1: OmniGuard governance — ALLOW is mandatory. Any other decision,
-        error, timeout, or connection failure BLOCKS execution entirely.
-
-        GATE 2: AgentGuard authorization — ALLOW is mandatory after OmniGuard ALLOW.
-        DENIED prevents execution.
-
-        Only when BOTH gates approve does the protected capability execute
-        (exactly one capability call with fully supplied arguments).
-        """
-        job_id = self.workflows.submit(principal=principal, capability=capability,
-                                       action=action, arguments=arguments)
-
-        def guarded_executor(capability: str, principal: str, action: str,
-                             arguments: dict[str, Any]) -> dict[str, Any]:
-            # GATE 1: OmniGuard enforcement — mandatory, fail-closed
-            # No fallback, no skip. OmniGuard ALLOW is required.
+        def guarded_executor(
+            capability: str,
+            principal: str,
+            action: str,
+            arguments: dict[str, Any],
+        ) -> dict[str, Any]:
+            # A synchronous entry point cannot call asyncio.run inside an active loop.
+            # Reject safely rather than silently skipping governance.
             try:
-                omni_result = asyncio.run(
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                raise IntegrationError("omniguard_event_loop_unsupported")
+
+            # The gateway's chat/completions schema guarantees processing of
+            # message.content; arbitrary additional message keys may be ignored.
+            # Keep request context in deterministic JSON content for inspection.
+            context = json.dumps(
+                {
+                    "principal": principal,
+                    "capability": capability,
+                    "action": action,
+                    "arguments": arguments,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            try:
+                result = asyncio.run(
                     self.omni_guard_client.inspect(
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": f"execute {capability}",
-                                "principal": principal,
-                                "capability": capability,
-                                "action": action,
-                                "arguments": arguments
-                            }
-                        ]
+                        messages=[{"role": "user", "content": context}]
                     )
                 )
-            except Exception as e:
-                # Any OmniGuard error (timeout, connection failure, HTTP error,
-                # malformed response, invalid payload) prevents execution.
-                # CRITICAL: No fail-open — any error blocks.
-                raise IntegrationError(
-                    f"omniguard_execution_failed:{type(e).__name__}:{str(e)[:80]}"
-                )
+                decision = result.decision
+            except Exception as exc:
+                raise IntegrationError("omniguard_inspection_failed") from exc
+            if decision != OmniGuardDecision.ALLOW:
+                raise IntegrationError("omniguard_not_allowed")
 
-            # Verify OmniGuard decision is ALLOW — no other decision accepted
-            if omni_result.decision != OmniGuardDecision.ALLOW:
-                # BLOCK, DENY, or any other decision prevents execution
-                raise IntegrationError(
-                    f"omniguard_decision_{omni_result.decision.value if hasattr(omni_result.decision, 'value') else omni_result.decision}"
-                )
-
-            # Verify we have a valid block_reason if decision is BLOCK
-            # (Should not reach here since decision != ALLOW would have raised,
-            # but defensive check for malformed state)
-            if hasattr(omni_result, 'blocked_reason') and omni_result.blocked_reason:
-                pass  # available for logging/auditing if needed
-
-            # GATE 2: AgentGuard enforcement — must also ALLOW
-            # OmniGuard ALLOW alone cannot bypass AgentGuard authorization
+            # Registry validation is distinct from remote AgentGuard authorization.
+            # Never dispatch an unregistered or disabled capability.
             try:
-                agent_result = self.guard.execute(
+                self.agents.resolve(capability)
+            except Exception as exc:
+                raise IntegrationError("capability_not_available") from exc
+
+            try:
+                response = self.guard.execute(
                     capability=capability,
                     principal=principal,
                     action=action,
-                    arguments=arguments
+                    arguments=arguments,
                 )
-            except IntegrationError:
-                # AgentGuard DENIED prevents execution
-                raise IntegrationError("agentguard_denied")
-
-            # Both OmniGuard ALLOW + AgentGuard ALLOWED: exactly one capability call
-            # AgentResult should have status='success' from FoundationOrchestrator.execute()
-            if not isinstance(agent_result, dict) or agent_result.get("status") != "success":
-                raise IntegrationError("Capability execution not verified — result did not report success")
-            return agent_result
+            except IntegrationError as exc:
+                raise IntegrationError("agentguard_denied") from exc
+            if not isinstance(response, dict) or response.get("status") != "success":
+                raise IntegrationError("capability_execution_unverified")
+            return response
 
         result = self.workflows.run(job_id, guarded_executor)
         return {"job_id": job_id, "result": result}
