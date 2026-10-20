@@ -21,12 +21,11 @@ URL is reachable, every capability execution is gated through AgentGuard
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
@@ -36,10 +35,10 @@ AGENTGUARD_ENABLED = os.getenv("AGENTGUARD_ENABLED", "false").lower() == "true"
 AGENTGUARD_URL = os.getenv("AGENTGUARD_URL", "http://localhost:8000")
 
 try:
-    from foundation_next.orchestrator import FoundationOrchestrator, Service
-    from foundation_next.control_plane import FoundationControlPlane
-    from foundation_next.workflows import WorkflowEngine
     from foundation_next.agents import AgentRegistry
+    from foundation_next.control_plane import FoundationControlPlane
+    from foundation_next.orchestrator import FoundationOrchestrator, Service
+    from foundation_next.workflows import WorkflowEngine
 
     _guard_service: Service | None = None
     if AGENTGUARD_ENABLED:
@@ -55,7 +54,7 @@ try:
 
     _control_plane: FoundationControlPlane | None = None
     if _orchestrator is not None:
-        _agent_registry = AgentRegistry()
+        _agent_registry: AgentRegistry = AgentRegistry()
         _workflow_engine = WorkflowEngine(
             database_path=os.getenv("FOUNDATION_WORKFLOWS_DB", "./data/workflows.db")
         )
@@ -91,10 +90,16 @@ app = FastAPI(
 )
 
 # Prometheus metrics
-REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
-REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"])
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"]
+)
 SKILL_EXECUTIONS = Counter("skill_executions_total", "Total skill executions", ["skill", "status"])
-SKILL_DURATION = Histogram("skill_execution_duration_seconds", "Skill execution duration", ["skill"])
+SKILL_DURATION = Histogram(
+    "skill_execution_duration_seconds", "Skill execution duration", ["skill"]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -134,13 +139,13 @@ def health() -> dict[str, str]:
 
 
 @app.get("/metrics")
-def metrics():
+def metrics() -> Response:
     """Prometheus metrics endpoint."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, Any]:
     return {
         "message": "FoundationCentar API is running",
         "version": "1.0.0-pre.1",
@@ -149,7 +154,7 @@ async def root():
 
 
 @app.get("/api/v1/agents")
-async def list_agents():
+async def list_agents() -> dict[str, Any]:
     """List all registered agents (Brain + Chiefs + Workers)."""
     if _LOCAL_ORCHESTRATOR:
         agents: dict[str, dict[str, Any]] = {
@@ -169,27 +174,35 @@ async def list_agents():
 
 
 @app.get("/api/v1/skills")
-async def list_skills():
+async def list_skills() -> dict[str, str]:
     """List all available skills."""
     try:
-        from foundation_next.local_skills import skill_diagnose_smart_meter, skill_reconcile_half_hourly_tariff
+        from foundation_next.local_skills import (
+            skill_diagnose_smart_meter,
+            skill_reconcile_half_hourly_tariff,
+        )
         return {
-            "smart_meter_diagnostic": skill_diagnose_smart_meter.__doc__,
-            "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff.__doc__,
+            "smart_meter_diagnostic": skill_diagnose_smart_meter.__doc__ or "",
+            "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff.__doc__ or "",
         }
     except ImportError:
         return {
             "smart_meter_diagnostic": "Diagnose a smart meter anomaly based on consumption data.",
-            "half_hourly_reconciliation": "Reconcile half-hourly tariff data against expected patterns.",
+            "half_hourly_reconciliation": (
+                "Reconcile half-hourly tariff data against expected patterns."
+            ),
         }
 
 
 @app.post("/api/v1/brain/route")
-async def route_brain(request: ChiefInput):
+async def route_brain(request: ChiefInput) -> dict[str, Any]:
     """Route a request through the Brain agent."""
-    if _LOCAL_ORCHESTRATOR:
-        result = local_brain.route({"domain": request.domain, "action": request.action})
-        return {"routed": True, "result": result}
+    # Refuse ungoverned local execution until dual-gate integration is wired.
+    if _control_plane is None:
+        raise HTTPException(status_code=503, detail="Governed execution unavailable")
+
+    # Identity is currently hardcoded, not authenticated; fail closed.
+    raise HTTPException(status_code=503, detail="Authenticated execution unavailable")
 
     if _control_plane is not None:
         result = _control_plane.submit_and_execute(
@@ -207,44 +220,14 @@ async def route_brain(request: ChiefInput):
 
 
 @app.post("/api/v1/execute-skill")
-async def execute_skill(request: SkillRequest):
+async def execute_skill(request: SkillRequest) -> dict[str, Any]:
     """Execute a skill by name."""
-    try:
-        from foundation_next.local_skills import (
-            MeterAuditInput,
-            skill_diagnose_smart_meter,
-            skill_reconcile_half_hourly_tariff,
-        )
-    except ImportError:
-        raise HTTPException(status_code=503, detail="Skills module not available")
-
-    skills = {
-        "smart_meter_diagnostic": skill_diagnose_smart_meter,
-        "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff,
-    }
-
-    skill_name = request.prompt
-    if skill_name not in skills:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
-
-    input_data = MeterAuditInput(
-        meter_id="meter-001",
-        reading_date=datetime.now(timezone.utc).isoformat(),
-        consumption_kwh=400,
-        tariff_zone=request.domain,
-    )
-
-    result = skills[skill_name](input_data)
-    return {
-        "status": result.status,
-        "skill": result.skill_name,
-        "output": result.output,
-        "execution_time_ms": result.execution_time_ms,
-    }
+    # No authenticated dual-gate execution boundary is configured for skills.
+    raise HTTPException(status_code=503, detail="Governed skill execution unavailable")
 
 
 @app.post("/api/v1/create-agent")
-async def create_agent(request: NewAgent):
+async def create_agent(request: NewAgent) -> dict[str, Any]:
     """Register a new agent in the system."""
     return {
         "registered": True,
@@ -254,7 +237,7 @@ async def create_agent(request: NewAgent):
 
 
 @app.post("/api/v1/synthesize-skill")
-async def synthesize_skill(request: CreateSkillRequest):
+async def synthesize_skill(request: CreateSkillRequest) -> dict[str, Any]:
     """Synthesize a new skill from execution traces."""
     return {
         "synthesized": True,
@@ -264,7 +247,7 @@ async def synthesize_skill(request: CreateSkillRequest):
 
 
 @app.get("/api/v1/traces")
-async def list_traces(domain: str | None = None, limit: int = 10):
+async def list_traces(domain: str | None = None, limit: int = 10) -> dict[str, Any]:
     """List recent execution traces."""
     return {
         "traces": [],
