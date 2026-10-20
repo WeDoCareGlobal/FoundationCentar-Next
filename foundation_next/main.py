@@ -21,12 +21,11 @@ URL is reachable, every capability execution is gated through AgentGuard
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
@@ -36,10 +35,10 @@ AGENTGUARD_ENABLED = os.getenv("AGENTGUARD_ENABLED", "false").lower() == "true"
 AGENTGUARD_URL = os.getenv("AGENTGUARD_URL", "http://localhost:8000")
 
 try:
-    from foundation_next.orchestrator import FoundationOrchestrator, Service
-    from foundation_next.control_plane import FoundationControlPlane
-    from foundation_next.workflows import WorkflowEngine
     from foundation_next.agents import AgentRegistry
+    from foundation_next.control_plane import FoundationControlPlane
+    from foundation_next.orchestrator import FoundationOrchestrator, Service
+    from foundation_next.workflows import WorkflowEngine
 
     _guard_service: Service | None = None
     if AGENTGUARD_ENABLED:
@@ -91,10 +90,16 @@ app = FastAPI(
 )
 
 # Prometheus metrics
-REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
-REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"])
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"]
+)
 SKILL_EXECUTIONS = Counter("skill_executions_total", "Total skill executions", ["skill", "status"])
-SKILL_DURATION = Histogram("skill_execution_duration_seconds", "Skill execution duration", ["skill"])
+SKILL_DURATION = Histogram(
+    "skill_execution_duration_seconds", "Skill execution duration", ["skill"]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +177,10 @@ async def list_agents():
 async def list_skills():
     """List all available skills."""
     try:
-        from foundation_next.local_skills import skill_diagnose_smart_meter, skill_reconcile_half_hourly_tariff
+        from foundation_next.local_skills import (
+            skill_diagnose_smart_meter,
+            skill_reconcile_half_hourly_tariff,
+        )
         return {
             "smart_meter_diagnostic": skill_diagnose_smart_meter.__doc__,
             "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff.__doc__,
@@ -180,7 +188,9 @@ async def list_skills():
     except ImportError:
         return {
             "smart_meter_diagnostic": "Diagnose a smart meter anomaly based on consumption data.",
-            "half_hourly_reconciliation": "Reconcile half-hourly tariff data against expected patterns.",
+            "half_hourly_reconciliation": (
+                "Reconcile half-hourly tariff data against expected patterns."
+            ),
         }
 
 
