@@ -82,7 +82,7 @@ class WorkflowEngine:
             raise KeyError(job_id)
         keys = ("id", "capability", "action", "principal", "arguments",
                 "status", "result", "created_at", "updated_at")
-        item = dict(zip(keys, row))
+        item = dict(zip(keys, row, strict=True))
         item["arguments"] = json.loads(item["arguments"])
         item["result"] = json.loads(item["result"]) if item["result"] else None
         return item
