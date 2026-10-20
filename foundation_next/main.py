@@ -191,6 +191,9 @@ async def route_brain(request: ChiefInput):
     if _control_plane is None:
         raise HTTPException(status_code=503, detail="Governed execution unavailable")
 
+    # Identity is currently hardcoded, not authenticated; fail closed.
+    raise HTTPException(status_code=503, detail="Authenticated execution unavailable")
+
     if _control_plane is not None:
         result = _control_plane.submit_and_execute(
             principal="api-user",
@@ -209,41 +212,8 @@ async def route_brain(request: ChiefInput):
 @app.post("/api/v1/execute-skill")
 async def execute_skill(request: SkillRequest):
     """Execute a skill by name."""
-    try:
-        from foundation_next.local_skills import (
-            MeterAuditInput,
-            skill_diagnose_smart_meter,
-            skill_reconcile_half_hourly_tariff,
-        )
-    except ImportError:
-        raise HTTPException(status_code=503, detail="Skills module not available")
-
-    skills = {
-        "smart_meter_diagnostic": skill_diagnose_smart_meter,
-        "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff,
-    }
-
-    # Local skill execution is not connected to either governance gate.
+    # No authenticated dual-gate execution boundary is configured for skills.
     raise HTTPException(status_code=503, detail="Governed skill execution unavailable")
-
-    skill_name = request.prompt
-    if skill_name not in skills:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
-
-    input_data = MeterAuditInput(
-        meter_id="meter-001",
-        reading_date=datetime.now(timezone.utc).isoformat(),
-        consumption_kwh=400,
-        tariff_zone=request.domain,
-    )
-
-    result = skills[skill_name](input_data)
-    return {
-        "status": result.status,
-        "skill": result.skill_name,
-        "output": result.output,
-        "execution_time_ms": result.execution_time_ms,
-    }
 
 
 @app.post("/api/v1/create-agent")
