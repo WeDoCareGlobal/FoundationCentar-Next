@@ -191,10 +191,6 @@ async def route_brain(request: ChiefInput):
     if _control_plane is None:
         raise HTTPException(status_code=503, detail="Governed execution unavailable")
 
-    if _LOCAL_ORCHESTRATOR:
-        result = local_brain.route({"domain": request.domain, "action": request.action})
-        return {"routed": True, "result": result}
-
     if _control_plane is not None:
         result = _control_plane.submit_and_execute(
             principal="api-user",
