@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+
 class RoutingError(RuntimeError):
     pass
 
@@ -17,7 +18,11 @@ class AgentRegistry:
         self._agents: dict[str, AgentSpec] = {}
         self._handlers: dict[str, Callable[[str, dict[str, Any]], dict[str, Any]]] = {}
 
-    def register(self, spec: AgentSpec, handler: Callable[[str, dict[str, Any]], dict[str, Any]]) -> None:
+    def register(
+        self,
+        spec: AgentSpec,
+        handler: Callable[[str, dict[str, Any]], dict[str, Any]],
+    ) -> None:
         if not spec.agent_id or not spec.capabilities or spec.agent_id in self._agents:
             raise ValueError("Invalid or duplicate agent")
         self._agents[spec.agent_id] = spec
