@@ -132,7 +132,9 @@ class ControlPlaneTests(unittest.TestCase):
                     json={"error": "gateway unavailable"},
                 )
             )
-            async with httpx.AsyncClient(transport=transport) as client:
+            async with httpx.AsyncClient(
+                base_url="http://localhost:8000/v1", transport=transport
+            ) as client:
                 original = self.omni._client
                 self.omni._client = client
                 try:
