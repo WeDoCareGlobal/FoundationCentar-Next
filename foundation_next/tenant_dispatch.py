@@ -17,13 +17,13 @@ class AuthenticatedPrincipal:
     issuer: str
     authenticated: bool
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.subject or not self.tenant_id or not self.issuer or not self.authenticated:
             raise ValueError("Invalid principal")
 
 
 class IdentityBoundary:
-    def __init__(self, trusted_issuer: str):
+    def __init__(self, trusted_issuer: str) -> None:
         if not trusted_issuer:
             raise ValueError("Trusted issuer required")
         self.trusted_issuer = trusted_issuer

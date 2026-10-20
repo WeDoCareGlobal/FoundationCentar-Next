@@ -14,7 +14,7 @@ class AgentSpec:
     enabled: bool = True
 
 class AgentRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         self._agents: dict[str, AgentSpec] = {}
         self._handlers: dict[str, Callable[[str, dict[str, Any]], dict[str, Any]]] = {}
 

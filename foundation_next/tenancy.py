@@ -12,7 +12,7 @@ class ToolManifest:
 
 
 class TenantCatalog:
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[tuple[str, str, str], ToolManifest] = {}
 
     def register(self, manifest: ToolManifest) -> None:

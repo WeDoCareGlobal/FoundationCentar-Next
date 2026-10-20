@@ -54,7 +54,7 @@ try:
 
     _control_plane: FoundationControlPlane | None = None
     if _orchestrator is not None:
-        _agent_registry = AgentRegistry()
+        _agent_registry: AgentRegistry = AgentRegistry()
         _workflow_engine = WorkflowEngine(
             database_path=os.getenv("FOUNDATION_WORKFLOWS_DB", "./data/workflows.db")
         )
@@ -139,13 +139,13 @@ def health() -> dict[str, str]:
 
 
 @app.get("/metrics")
-def metrics():
+def metrics() -> Response:
     """Prometheus metrics endpoint."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, Any]:
     return {
         "message": "FoundationCentar API is running",
         "version": "1.0.0-pre.1",
@@ -154,7 +154,7 @@ async def root():
 
 
 @app.get("/api/v1/agents")
-async def list_agents():
+async def list_agents() -> dict[str, Any]:
     """List all registered agents (Brain + Chiefs + Workers)."""
     if _LOCAL_ORCHESTRATOR:
         agents: dict[str, dict[str, Any]] = {
@@ -174,7 +174,7 @@ async def list_agents():
 
 
 @app.get("/api/v1/skills")
-async def list_skills():
+async def list_skills() -> dict[str, str]:
     """List all available skills."""
     try:
         from foundation_next.local_skills import (
@@ -182,8 +182,8 @@ async def list_skills():
             skill_reconcile_half_hourly_tariff,
         )
         return {
-            "smart_meter_diagnostic": skill_diagnose_smart_meter.__doc__,
-            "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff.__doc__,
+            "smart_meter_diagnostic": skill_diagnose_smart_meter.__doc__ or "",
+            "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff.__doc__ or "",
         }
     except ImportError:
         return {
@@ -195,7 +195,7 @@ async def list_skills():
 
 
 @app.post("/api/v1/brain/route")
-async def route_brain(request: ChiefInput):
+async def route_brain(request: ChiefInput) -> dict[str, Any]:
     """Route a request through the Brain agent."""
     # Refuse ungoverned local execution until dual-gate integration is wired.
     if _control_plane is None:
@@ -220,14 +220,14 @@ async def route_brain(request: ChiefInput):
 
 
 @app.post("/api/v1/execute-skill")
-async def execute_skill(request: SkillRequest):
+async def execute_skill(request: SkillRequest) -> dict[str, Any]:
     """Execute a skill by name."""
     # No authenticated dual-gate execution boundary is configured for skills.
     raise HTTPException(status_code=503, detail="Governed skill execution unavailable")
 
 
 @app.post("/api/v1/create-agent")
-async def create_agent(request: NewAgent):
+async def create_agent(request: NewAgent) -> dict[str, Any]:
     """Register a new agent in the system."""
     return {
         "registered": True,
@@ -237,7 +237,7 @@ async def create_agent(request: NewAgent):
 
 
 @app.post("/api/v1/synthesize-skill")
-async def synthesize_skill(request: CreateSkillRequest):
+async def synthesize_skill(request: CreateSkillRequest) -> dict[str, Any]:
     """Synthesize a new skill from execution traces."""
     return {
         "synthesized": True,
@@ -247,7 +247,7 @@ async def synthesize_skill(request: CreateSkillRequest):
 
 
 @app.get("/api/v1/traces")
-async def list_traces(domain: str | None = None, limit: int = 10):
+async def list_traces(domain: str | None = None, limit: int = 10) -> dict[str, Any]:
     """List recent execution traces."""
     return {
         "traces": [],

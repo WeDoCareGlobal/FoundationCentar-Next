@@ -10,7 +10,7 @@ class EvaluationEvent:
     outcome: str
     latency_ms: float
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.job_id or not self.capability:
             raise ValueError("Missing evaluation identity")
         if self.outcome not in ("completed", "failed", "denied"):
@@ -20,7 +20,7 @@ class EvaluationEvent:
 
 
 class Evaluator:
-    def __init__(self):
+    def __init__(self) -> None:
         self.events: list[EvaluationEvent] = []
 
     def record(self, event: EvaluationEvent) -> None:

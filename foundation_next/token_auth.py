@@ -12,23 +12,23 @@ import time
 from foundation_next.tenant_dispatch import AuthenticatedPrincipal
 
 
-def _encode(data):
+def _encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def _decode(value):
+def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 class SignedIngress:
-    def __init__(self, secret: bytes, issuer: str, audience: str):
+    def __init__(self, secret: bytes, issuer: str, audience: str) -> None:
         if len(secret) < 32 or not issuer or not audience:
             raise ValueError("Strong secret, issuer and audience required")
         self.secret = secret
         self.issuer = issuer
         self.audience = audience
 
-    def issue(self, *, subject: str, tenant_id: str, ttl_seconds: int = 300):
+    def issue(self, *, subject: str, tenant_id: str, ttl_seconds: int = 300) -> str:
         if not subject or not tenant_id or not 0 < ttl_seconds <= 900:
             raise ValueError("Invalid assertion")
         payload = {"sub": subject, "tenant": tenant_id, "iss": self.issuer,
