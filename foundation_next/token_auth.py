@@ -41,7 +41,10 @@ class SignedIngress:
         try:
             body, signature = token.split(".")
             expected = hmac.new(self.secret, body.encode(), hashlib.sha256).digest()
-            if not hmac.compare_digest(expected, _decode(signature)) or _encode(expected) != signature:
+            if (
+                not hmac.compare_digest(expected, _decode(signature))
+                or _encode(expected) != signature
+            ):
                 raise ValueError("Signature mismatch")
             claims = json.loads(_decode(body))
             if not isinstance(claims, dict) or claims.get("iss") != self.issuer:
