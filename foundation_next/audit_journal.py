@@ -3,6 +3,8 @@
 Integrity verification detects edits to retained rows. It cannot detect
 complete deletion or replacement without an external trusted checkpoint.
 """
+from contextlib import contextmanager
+
 import hashlib
 import json
 import sqlite3
