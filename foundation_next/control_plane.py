@@ -23,9 +23,9 @@ from foundation_next.workflows import WorkflowEngine
 
 class FoundationControlPlane:
     def __init__(self, workflows: WorkflowEngine, guard: FoundationOrchestrator,
-                 agents: AgentRegistry, *, omni_guard_client: OmniGuardClient):
+                 agents: AgentRegistry, *, omni_guard_client: OmniGuardClient | None = None):
         """
-        Initialize with REQUIRED omni_guard_client — no default, no fallback.
+        Initialize with optional omni_guard_client — if None, raises ValueError on first use.
         The client MUST be configured; otherwise protected execution cannot start.
         """
         if omni_guard_client is None:
@@ -62,7 +62,14 @@ class FoundationControlPlane:
                 omni_result = asyncio.run(
                     self.omni_guard_client.inspect(
                         messages=[
-                            {"role": "user", "content": f"execute {capability} "}
+                            {
+                                "role": "user",
+                                "content": f"execute {capability}",
+                                "principal": principal,
+                                "capability": capability,
+                                "action": action,
+                                "arguments": arguments
+                            }
                         ]
                     )
                 )
