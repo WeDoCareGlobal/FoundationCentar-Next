@@ -14,6 +14,8 @@ Test coverage:
 - Successful ALLOW response -> ALLOW decision with full result
 - Successful BLOCK response -> BLOCK decision with blocked_reason
 - Execution-level regression: BLOCK prevents protected agent/tool action
+- HTTP 401, 403, 429, 500 always BLOCK regardless of headers
+- Malformed/invalid response payloads always produce BLOCK
 """
 
 from __future__ import annotations
@@ -54,6 +56,7 @@ class OmniGuardClient:
     - Invalid credentials → operation denied (not silently allowed)
     - Malformed response → operation denied (not silently allowed)
     - Timeout → operation denied (not silently allowed)
+    - Non-2xx HTTP responses → always BLOCK (critical security fix)
 
     The local tool authorization below is an additional layer, NOT a
     bypass. OmniGuard gate must be the primary security boundary.
@@ -115,9 +118,13 @@ class OmniGuardClient:
     ) -> OmniGuardResult:
         """Send messages to OmniGuard for inspection.
 
-        Fail-closed: any error during inspection defaults to BLOCK.
+        Fail-closed: any error or non-2xx response during inspection defaults to BLOCK.
         This ensures protected operations are never silently allowed when
         the gateway cannot make a safe decision.
+
+        CRITICAL SECURITY: Only 2xx responses are processed for governance decisions.
+        ALL non-2xx responses (including 401, 403, 429, 500) result in BLOCK decision,
+        regardless of any X-Governance-Decision headers present in the response.
         """
         client = await self._get_client()
         payload = {
@@ -188,6 +195,23 @@ class OmniGuardClient:
                 latency_ms=0.0,
                 tier_latencies={},
                 blocked_reason="gateway_error",
+            )
+
+        # --- CRITICAL SECURITY CHECK: Only process 2xx responses ---
+        # Non-2xx responses (1xx, 3xx, 4xx, 5xx) must always result in BLOCK,
+        # regardless of any X-Governance-Decision headers present.
+        if resp.status_code < 200 or resp.status_code >= 300:
+            logger.warning(
+                "OmniGuard: non-2xx HTTP response %s; defaulting to BLOCK (security fix)",
+                resp.status_code,
+            )
+            return OmniGuardResult(
+                decision=OmniGuardDecision.BLOCK,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason=f"http_{resp.status_code}",
             )
 
         # --- Process successful HTTP response (2xx) ---
