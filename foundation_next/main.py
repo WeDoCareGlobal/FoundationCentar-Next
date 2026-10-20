@@ -187,6 +187,10 @@ async def list_skills():
 @app.post("/api/v1/brain/route")
 async def route_brain(request: ChiefInput):
     """Route a request through the Brain agent."""
+    # Refuse ungoverned local execution until dual-gate integration is wired.
+    if _control_plane is None:
+        raise HTTPException(status_code=503, detail="Governed execution unavailable")
+
     if _LOCAL_ORCHESTRATOR:
         result = local_brain.route({"domain": request.domain, "action": request.action})
         return {"routed": True, "result": result}
@@ -222,6 +226,9 @@ async def execute_skill(request: SkillRequest):
         "smart_meter_diagnostic": skill_diagnose_smart_meter,
         "half_hourly_reconciliation": skill_reconcile_half_hourly_tariff,
     }
+
+    # Local skill execution is not connected to either governance gate.
+    raise HTTPException(status_code=503, detail="Governed skill execution unavailable")
 
     skill_name = request.prompt
     if skill_name not in skills:
