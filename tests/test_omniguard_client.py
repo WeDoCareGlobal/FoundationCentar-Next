@@ -327,3 +327,37 @@ async def test_block_prevents_protected_action():
         assert result.decision == OmniGuardDecision.BLOCK
         assert result.blocked_reason == "policy_violation: unauthorized operation"
         assert "policy_violation" in result.blocked_reason
+
+
+# Execution-boundary regression test: BLOCK decision prevents protected tool execution
+# via the real GuardedExecution.execute() function with AgentGuardAdapter.
+# This verifies the fail-closed contract at the execution boundary, not just at the
+# OmniGuardClient.inspect() level.
+
+@pytest.mark.asyncio
+async def test_block_prevents_protected_execution_boundary():
+    """Execution boundary test: BLOCK decision prevents protected tool execution.
+
+    Invokes the real GuardedExecution.execute() function with an AgentGuardAdapter
+    returning BLOCK decision, and asserts the protected tool was never called.
+
+    This tests the execution boundary, NOT just OmniGuardClient.inspect().
+    In production, the calling layer checks result.decision == BLOCK and aborts
+    the operation before invoking GuardedExecution.execute().
+    """
+    from foundation_next.agentguard_adapter import AgentGuardAdapter
+    from foundation_next.agentguard_execution import GuardedExecution
+    from foundation_next.orchestrator import IntegrationError
+
+    calls = []
+    adapter = AgentGuardAdapter(
+        "https://guard.example/toolcall", agent="foundation",
+        transport=lambda *_: {"decision": "BLOCK", "audit_id": 1}
+    )
+    bridge = GuardedExecution(adapter, {
+        "rag": lambda payload: calls.append(payload)
+    })
+    with pytest.raises(IntegrationError):
+        bridge.execute(principal="alice", capability="rag", action="query", arguments={})
+    # Critical: protected tool was never invoked despite BLOCK decision
+    assert calls == [], "BLOCK decision should prevent protected tool execution"
