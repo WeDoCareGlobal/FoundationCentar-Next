@@ -3,9 +3,11 @@
 Authentication proof must be verified by a separate trusted ingress before
 AuthenticatedPrincipal is constructed. Never construct it from request JSON.
 """
+from dataclasses import dataclass
 from typing import Any
 
-from dataclasses import dataclass
+from foundation_next.agentguard_execution import GuardedExecution
+from foundation_next.tenancy import TenantCatalog
 
 
 @dataclass(frozen=True)
@@ -31,10 +33,6 @@ class IdentityBoundary:
             raise PermissionError("Principal required")
         if principal.issuer != self.trusted_issuer or principal.tenant_id != tenant_id:
             raise PermissionError("Issuer or tenant mismatch")
-from foundation_next.tenancy import TenantCatalog
-from foundation_next.agentguard_execution import GuardedExecution
-
-
 class TenantDispatcher:
     def __init__(self, identity: IdentityBoundary, catalog: TenantCatalog,
                  executor: GuardedExecution):
