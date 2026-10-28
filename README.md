@@ -1,6 +1,11 @@
 # FoundationCentar — One-Click Agent Factory OS (Next Generation)
 
-> **Status:** `v1.0.0-pre.1` — production-ready pre-release. The local (fail-open) orchestrator is fully operational. AgentGuard integration is wired but opt-in via `AGENTGUARD_ENABLED=true`.
+> **Engineering focus:** Agent orchestration with accountable workflows.
+>
+> **Evidence boundary:** Integration and fail-closed behavior need environment-specific validation.
+>
+> [Project overview](https://www.wedocare-global.com/foundationcentar.html) · [Evidence index](https://www.wedocare-global.com/evidence.html) · [Portfolio](https://github.com/WeDoCareGlobal)
+
 
 
 [![CI](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml/badge.svg)](https://github.com/WeDoCareGlobal/FoundationCentar-Next/actions/workflows/ci.yml)
