@@ -74,7 +74,11 @@ class FoundationOrchestrator:
         })
         # This is a provisional adapter contract, not a claim that an existing
         # AgentGuard deployment currently accepts this request format.
-        if decision.get("decision") != "allow" or not isinstance(decision.get("decision_id"), str) or not decision["decision_id"]:
+        if (
+            decision.get("decision") != "allow"
+            or not isinstance(decision.get("decision_id"), str)
+            or not decision["decision_id"]
+        ):
             raise IntegrationError("AgentGuard did not authorize execution")
         result = self.transport(service.url, {
             "principal": principal,

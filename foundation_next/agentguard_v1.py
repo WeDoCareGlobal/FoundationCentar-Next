@@ -80,6 +80,10 @@ class AgentGuardV1Execution:
             raise
         except Exception as exc:
             raise IntegrationError("AgentGuard execution request failed") from exc
-        if not isinstance(response, dict) or response.get("decision") != "ALLOW" or "result" not in response:
+        if (
+            not isinstance(response, dict)
+            or response.get("decision") != "ALLOW"
+            or "result" not in response
+        ):
             raise IntegrationError("AgentGuard execution not confirmed")
         return response["result"]

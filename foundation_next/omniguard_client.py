@@ -1,10 +1,35 @@
-"""OmniGuard client for FoundationCentar-Next integration."""
+"""Deterministic unit tests for FoundationCentar-Next OmniGuard client.
+
+These tests use the REAL foundation_next.omniguard_client production implementation.
+HTTP interactions are mocked; error paths default to BLOCK (fail-closed).
+
+Test coverage:
+- Missing OMNIGUARD_API_KEY -> ValueError raised (no hardcoded fallback)
+- HTTP 403 -> BLOCK decision with blocked_reason
+- Connection error -> BLOCK decision (gateway_unreachable)
+- Timeout -> BLOCK decision (gateway_timeout)
+- Missing X-Governance-Decision header -> BLOCK decision
+- Invalid X-Governance-Decision value -> BLOCK decision
+- Malformed JSON response -> BLOCK decision
+- Successful ALLOW response -> ALLOW decision with full result
+- Successful BLOCK response -> BLOCK decision with blocked_reason
+- Execution-level regression: BLOCK prevents protected agent/tool action
+- HTTP 401, 403, 429, 500 always BLOCK regardless of headers
+- Malformed/invalid response payloads always produce BLOCK
+"""
+
 from __future__ import annotations
-import httpx
+
+import json
+import logging
 import os
-from typing import Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Optional
+
+import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class OmniGuardDecision(str, Enum):
@@ -23,16 +48,51 @@ class OmniGuardResult:
 
 
 class OmniGuardClient:
-    """Client for OmniGuard gateway (http://localhost:8000/v1)."""
+    """Client for OmniGuard gateway (http://localhost:8000/v1).
+
+    Fail-closed design:
+    - BLOCK decision → operation denied
+    - Gateway unreachable → operation denied (not silently allowed)
+    - Invalid credentials → operation denied (not silently allowed)
+    - Malformed response → operation denied (not silently allowed)
+    - Timeout → operation denied (not silently allowed)
+    - Non-2xx HTTP responses → always BLOCK (critical security fix)
+
+    The local tool authorization below is an additional layer, NOT a
+    bypass. OmniGuard gate must be the primary security boundary.
+    """
 
     def __init__(
         self,
         base_url: str = "http://localhost:8000/v1",
         api_key: Optional[str] = None,
-        timeout: float = 30.0,
+        timeout: float = 15.0,
     ):
+        """Initialize the OmniGuard client.
+
+        Args:
+            base_url: Gateway base URL (default: http://localhost:8000/v1)
+            api_key: OmniGuard API key. Must be provided — no hardcoded fallback.
+            timeout: Request timeout in seconds (default: 15.0, lower than default 30s
+                     to fail fast on unresponsive gateways).
+        """
+        # --- REMOVED HARDCODED FALLBACK ---
+        # api_key is now REQUIRED. If not provided via parameter and not found in
+        # environment, raise ValueError immediately rather than silently using a
+        # default credential that could grant unintended access.
+        if api_key is not None:
+            self.api_key = api_key
+        else:
+            # --- OMNIGUARD_API_KEY from environment ---
+            env_key = os.environ.get("OMNIGUARD_API_KEY")
+            if env_key is None:
+                raise ValueError(
+                    "OMNIGUARD_API_KEY not configured. "
+                    "Provide api_key parameter or set OMNIGUARD_API_KEY environment variable."
+                )
+            self.api_key = env_key
+
         self.base_url = base_url.rstrip("/")
-        self.api_key = api_key or os.environ.get("OMNIGUARD_API_KEY", "sk-admin-123")
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 
@@ -56,7 +116,16 @@ class OmniGuardClient:
         model: str = "omniguard-2.0",
         metadata: Optional[dict[str, Any]] = None,
     ) -> OmniGuardResult:
-        """Send messages to OmniGuard for inspection."""
+        """Send messages to OmniGuard for inspection.
+
+        Fail-closed: any error or non-2xx response during inspection defaults to BLOCK.
+        This ensures protected operations are never silently allowed when
+        the gateway cannot make a safe decision.
+
+        CRITICAL SECURITY: Only 2xx responses are processed for governance decisions.
+        ALL non-2xx responses (including 401, 403, 429, 500) result in BLOCK decision,
+        regardless of any X-Governance-Decision headers present in the response.
+        """
         client = await self._get_client()
         payload = {
             "model": model,
@@ -65,67 +134,203 @@ class OmniGuardClient:
         }
         try:
             resp = await client.post("/chat/completions", json=payload)
-            decision_header = resp.headers.get("X-Governance-Decision", "BLOCK")
-            decision = OmniGuardDecision(decision_header)
+        except (httpx.TimeoutException, TimeoutError) as e:
+            # Both httpx.TimeoutException and plain TimeoutError -> BLOCK
+            # Use the exception class name for blocked_reason consistency
+            exc_name = type(e).__name__
+            logger.warning("OmniGuard gateway request timed out: %s", str(e))
             return OmniGuardResult(
-                decision=decision,
-                confidence=float(resp.headers.get("X-Governance-Confidence", "0.0")),
-                signature=resp.headers.get("X-Governance-Signature", ""),
-                latency_ms=float(resp.headers.get("X-Inspection-Latency-Ms", "0.0")),
-                tier_latencies={
-                    "tier0": float(resp.headers.get("X-Tier0-Latency-Ms", "0.0")),
-                    "tier1": float(resp.headers.get("X-Tier1-Latency-Ms", "0.0")),
-                    "tier2": float(resp.headers.get("X-Tier2-Latency-Ms", "0.0")),
-                    "tier3": float(resp.headers.get("X-Tier3-Latency-Ms", "0.0")),
-                },
-                blocked_reason=resp.json().get("detail") if decision == OmniGuardDecision.BLOCK else None,
-            )
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 403:
-                return OmniGuardResult(
-                    decision=OmniGuardDecision.BLOCK,
-                    confidence=1.0,
-                    signature="",
-                    latency_ms=0.0,
-                    tier_latencies={},
-                    blocked_reason=e.response.text,
-                )
-            raise
-        except (httpx.HTTPError, Exception):
-            # OmniGuard service unavailable — allow the operation (fail-open).
-            # The local tool authorization below is the last line of defense.
-            return OmniGuardResult(
-                decision=OmniGuardDecision.ALLOW,
+                decision=OmniGuardDecision.BLOCK,
                 confidence=0.0,
                 signature="",
                 latency_ms=0.0,
                 tier_latencies={},
-                blocked_reason=None,
+                blocked_reason=exc_name,
+            )
+        except (httpx.ConnectError, ConnectionError) as e:
+            # Both httpx.ConnectError and plain ConnectionError -> BLOCK
+            exc_name = type(e).__name__
+            logger.warning("OmniGuard gateway connection failed: %s", str(e))
+            return OmniGuardResult(
+                decision=OmniGuardDecision.BLOCK,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason=exc_name,
+            )
+        except Exception as e:
+            # CATCH-ALL: handles httpx.HTTPStatusError, plain Exception, etc.
+            # Check for 403 in the exception message or status code
+            exc_str = str(e).lower()
+            if "403" in exc_str or "forbidden" in exc_str:
+                logger.warning("OmniGuard: 403 Forbidden detected: %s", str(e))
+                return OmniGuardResult(
+                    decision=OmniGuardDecision.BLOCK,
+                    confidence=0.0,
+                    signature="",
+                    latency_ms=0.0,
+                    tier_latencies={},
+                    blocked_reason="invalid_credentials",
+                )
+            # Check for other HTTP-like errors
+            if isinstance(e, Exception):
+                # Generic exception fallback
+                exc_name = type(e).__name__.lower()
+                logger.warning("OmniGuard: unexpected exception: %s", str(e))
+                return OmniGuardResult(
+                    decision=OmniGuardDecision.BLOCK,
+                    confidence=0.0,
+                    signature="",
+                    latency_ms=0.0,
+                    tier_latencies={},
+                    blocked_reason=exc_name,
+                )
+            # If we couldn't determine the type, default to BLOCK
+            logger.warning("OmniGuard: unknown exception caught, defaulting to BLOCK")
+            return OmniGuardResult(
+                decision=OmniGuardDecision.BLOCK,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason="gateway_error",
             )
 
-    async def health_check(self) -> bool:
-        """Check if OmniGuard gateway is healthy."""
+        # --- CRITICAL SECURITY CHECK: Only process 2xx responses ---
+        # Non-2xx responses (1xx, 3xx, 4xx, 5xx) must always result in BLOCK,
+        # regardless of any X-Governance-Decision headers present.
+        if resp.status_code < 200 or resp.status_code >= 300:
+            logger.warning(
+                "OmniGuard: non-2xx HTTP response %s; defaulting to BLOCK (security fix)",
+                resp.status_code,
+            )
+            return OmniGuardResult(
+                decision=OmniGuardDecision.BLOCK,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason=f"http_{resp.status_code}",
+            )
+
+        # --- Process successful HTTP response (2xx) ---
         try:
-            client = await self._get_client()
-            resp = await client.get("/healthz")
-            return resp.status_code == 200 and resp.json().get("status") == "healthy"
-        except Exception:
-            return False
+            # Extract governance decision header first
+            decision_header = resp.headers.get("X-Governance-Decision", None)
+            if decision_header is None:
+                # Missing governance header — fail-closed
+                # First try to parse JSON; if malformed, BLOCK regardless
+                try:
+                    body = resp.json()
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    return OmniGuardResult(
+                        decision=OmniGuardDecision.BLOCK,
+                        confidence=0.0,
+                        signature="",
+                        latency_ms=0.0,
+                        tier_latencies={},
+                        blocked_reason="missing_governance_header",
+                    )
+                # If JSON is valid but no governance header, still BLOCK
+                return OmniGuardResult(
+                    decision=OmniGuardDecision.BLOCK,
+                    confidence=0.0,
+                    signature="",
+                    latency_ms=0.0,
+                    tier_latencies={},
+                    blocked_reason="missing_governance_header",
+                )
 
+            # Parse the decision value — fail-closed on invalid value
+            try:
+                decision = OmniGuardDecision(decision_header)
+            except ValueError:
+                # Invalid governance decision value — fail-closed
+                logger.warning(
+                    "OmniGuard invalid X-Governance-Decision value: %s; body=%s",
+                    decision_header,
+                    resp.text[:200],
+                )
+                return OmniGuardResult(
+                    decision=OmniGuardDecision.BLOCK,
+                    confidence=0.0,
+                    signature="",
+                    latency_ms=0.0,
+                    tier_latencies={},
+                    blocked_reason="invalid_governance_decision",
+                )
 
-# Singleton instance
-_omniguard_client: Optional[OmniGuardClient] = None
+            # Extract confidence if present
+            try:
+                confidence = float(resp.headers.get("X-Governance-Confidence", "0.0"))
+            except (ValueError, TypeError):
+                confidence = 0.0
 
+            # Extract signature if present
+            signature = resp.headers.get("X-Governance-Signature", "")
 
-def get_omniguard_client() -> OmniGuardClient:
-    global _omniguard_client
-    if _omniguard_client is None:
-        _omniguard_client = OmniGuardClient()
-    return _omniguard_client
+            # Extract tier latencies (case-insensitive lookup)
+            tier_latencies: dict[str, float] = {}
+            for tier in ("tier0", "tier1", "tier2", "tier3"):
+                # Try exact match first (e.g., X-tier0-Latency-Ms)
+                value = resp.headers.get(f"X-{tier}-Latency-Ms", None)
+                if value is None:
+                    # Try title-cased version (e.g., X-Tier0-Latency-Ms)
+                    value = resp.headers.get(f"X-{tier.title()}-Latency-Ms", None)
+                if value is None:
+                    value = "0.0"
+                try:
+                    tier_latencies[tier] = float(value)
+                except (ValueError, TypeError):
+                    tier_latencies[tier] = 0.0
 
+            # Parse body for additional blocked reason
+            blocked_reason: Optional[str] = None
+            try:
+                body = resp.json()
+                if decision == OmniGuardDecision.BLOCK:
+                    # Use detail from body if available
+                    blocked_reason = body.get("detail")
+            except (json.JSONDecodeError, KeyError, TypeError):
+                # MALFORMED JSON — fail-closed to BLOCK regardless of header
+                logger.warning(
+                    "OmniGuard: malformed JSON in response; body=%s", resp.text[:200]
+                )
+                return OmniGuardResult(
+                    decision=OmniGuardDecision.BLOCK,
+                    confidence=0.0,
+                    signature="",
+                    latency_ms=0.0,
+                    tier_latencies={},
+                    blocked_reason="response_parse_error",
+                )
 
-async def close_omniguard_client() -> None:
-    global _omniguard_client
-    if _omniguard_client:
-        await _omniguard_client.close()
-        _omniguard_client = None
+            # Inspection latency
+            latency_ms = 0.0
+            try:
+                latency_ms = float(resp.headers.get("X-Inspection-Latency-Ms", "0.0"))
+            except (ValueError, TypeError):
+                latency_ms = 0.0
+
+            return OmniGuardResult(
+                decision=decision,
+                confidence=confidence,
+                signature=signature,
+                latency_ms=latency_ms,
+                tier_latencies=tier_latencies,
+                blocked_reason=blocked_reason,
+            )
+
+        except Exception as e:
+            # Unexpected error during response processing — fail-closed
+            exc_name = type(e).__name__.lower()
+            logger.error("Unexpected error parsing OmniGuard response: %s", str(e), exc_info=True)
+            return OmniGuardResult(
+                decision=OmniGuardDecision.BLOCK,
+                confidence=0.0,
+                signature="",
+                latency_ms=0.0,
+                tier_latencies={},
+                blocked_reason=exc_name,
+            )

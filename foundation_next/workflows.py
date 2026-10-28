@@ -9,13 +9,13 @@ import contextlib
 import json
 import sqlite3
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from typing import Any
 
 
 @contextlib.contextmanager
-def _managed_connection(database_path: str):
+def _managed_connection(database_path: str) -> Generator[sqlite3.Connection, None, None]:
     """Open a SQLite connection, ensure it is closed on exit.
 
     Python's sqlite3.Connection context manager only commits/rollbacks —
@@ -45,7 +45,7 @@ class WorkflowError(RuntimeError):
 
 
 class WorkflowEngine:
-    def __init__(self, database_path: str):
+    def __init__(self, database_path: str) -> None:
         self.database_path = database_path
         with _managed_connection(self.database_path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS jobs (
@@ -58,7 +58,7 @@ class WorkflowEngine:
                 status TEXT NOT NULL, created_at TEXT NOT NULL,
                 FOREIGN KEY(job_id) REFERENCES jobs(id))""")
 
-    def _connect(self):
+    def _connect(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
         return _managed_connection(self.database_path)
 
     def submit(self, *, principal: str, capability: str, action: str,
@@ -82,7 +82,7 @@ class WorkflowEngine:
             raise KeyError(job_id)
         keys = ("id", "capability", "action", "principal", "arguments",
                 "status", "result", "created_at", "updated_at")
-        item = dict(zip(keys, row))
+        item = dict(zip(keys, row, strict=True))
         item["arguments"] = json.loads(item["arguments"])
         item["result"] = json.loads(item["result"]) if item["result"] else None
         return item
@@ -110,12 +110,16 @@ class WorkflowEngine:
 
     def _finish(self, job_id: str, status: str, result: dict[str, Any]) -> None:
         with self._connect() as db:
-            db.execute("UPDATE jobs SET status=?,result=?,updated_at=? WHERE id=? AND status='running'",
-                       (status, json.dumps(result), utc_now(), job_id))
+            db.execute(
+                "UPDATE jobs SET status=?,result=?,updated_at=? WHERE id=? AND status='running'",
+                (status, json.dumps(result), utc_now(), job_id),
+            )
             db.execute("INSERT INTO events(job_id,status,created_at) VALUES (?,?,?)",
                        (job_id, status, utc_now()))
 
     def history(self, job_id: str) -> list[str]:
         with self._connect() as db:
-            rows = db.execute("SELECT status FROM events WHERE job_id=? ORDER BY seq", (job_id,)).fetchall()
+            rows = db.execute(
+                "SELECT status FROM events WHERE job_id=? ORDER BY seq", (job_id,)
+            ).fetchall()
         return [row[0] for row in rows]
