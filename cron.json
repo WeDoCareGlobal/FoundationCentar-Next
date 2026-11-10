@@ -1,0 +1,10 @@
+{
+  "crons": [
+    {
+      "name": "sync",
+      "schedule": "0 */6 * * *",
+      "timezone": "Europe/Sarajevo",
+      "command": "github-zenodo-orcid-sync"
+    }
+  ]
+}

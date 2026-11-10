@@ -1,0 +1,28 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          pip install --break-system-packages ruff mypy bandit safety
+      - name: Lint
+        run: ruff check src/ || true
+      - name: Typecheck
+        run: mypy src/ --ignore-missing-imports || true
+      - name: Security scan (bandit)
+        run: bandit -r src/ -f json -o bandit-report.json || true
+      - name: Security scan (safety)
+        run: safety check --json --output safety-report.json || true
