@@ -1,0 +1,68 @@
+name: Zenodo Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to archive (e.g. v1.0.0-pre.1)'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deposit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Zenodo token present
+        run: |
+          if [ -z "${{ secrets.ZENODO_TOKEN }}" ]; then
+            echo "::error::ZENODO_TOKEN secret is not set for this repo"
+            echo "Run: gh secret set ZENODO_TOKEN --repo <owner>/<repo>"
+            exit 1
+          fi
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create Zenodo deposition
+        id: deposit
+        run: |
+          RESPONSE=$(curl -s -X POST https://zenodo.org/api/deposit/depositions \
+            -H "Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"metadata": {}}')
+          DEPOSITION_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))")
+          echo "deposition_id=$DEPOSITION_ID" >> $GITHUB_OUTPUT
+
+      - name: Upload files to Zenodo bucket
+        run: |
+          BUCKET_URL=$(curl -s https://zenodo.org/api/deposit/depositions/${{ steps.deposit.outputs.deposition_id }} \
+            -H "Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['links']['bucket'])")
+          for f in docs/** CITATION.cff .zenodo.json LICENSE README.md; do
+            if [ -f "$f" ]; then
+              curl -s -X PUT "$BUCKET_URL/$(basename "$f")" \
+                -H "Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}" \
+                --upload-file "$f"
+            fi
+          done
+
+      - name: Publish deposition (mint DOI)
+        run: |
+          curl -s -X POST https://zenodo.org/api/deposit/depositions/${{ steps.deposit.outputs.deposition_id }}/actions/publish \
+            -H "Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
